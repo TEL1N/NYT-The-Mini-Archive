@@ -86,46 +86,67 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script>
-  const firebaseConfig = {
-    apiKey: "AIzaSyB3FOWXTT-QJWqyZLzWu2wzKNEzSeZ57hI",
-    authDomain: "nyt-the-mini-tracker.firebaseapp.com",
-    projectId: "nyt-the-mini-tracker",
-    storageBucket: "nyt-the-mini-tracker.firebasestorage.app",
-    messagingSenderId: "218822621674",
-    appId: "1:218822621674:web:a7123d34c46bb6d5d11a93"
-  };
-  // initialize
-  firebase.initializeApp(firebaseConfig);
-  window.auth = firebase.auth();
-  window.db   = firebase.firestore();
-</script>
+ <script>
+    // 1) Keep track of the signed-in user and a Firestore doc reference
+    let userRef = null;
+    let unsubscribe = null;
 
+    // 2) When auth state changes, subscribe to that user’s doc in Firestore…
+    auth.onAuthStateChanged(user => {
+      // clean up any prior listener
+      if (unsubscribe) unsubscribe();
 
-</head>
-  <!-- Auth controls: fixed top-right -->
-  
+      if (user) {
+        // point at /users/{uid}
+        userRef = db.collection('users').doc(user.uid);
+        // listen for remote updates → seed localStorage
+        unsubscribe = userRef.onSnapshot(doc => {
+          const data = doc.exists ? doc.data() : {};
+          localStorage.setItem('nytMiniCompleted',  JSON.stringify(data.completed  || []));
+          localStorage.setItem('nytMiniInProgress', JSON.stringify(data.inProgress || []));
+          // force React to re-read storage on next actions
+          window.dispatchEvent(new Event('storage'));
+        });
 
+        // show “Sign Out”
+        document.getElementById('loginBtn').classList.add('hidden');
+        document.getElementById('logoutBtn').classList.remove('hidden');
+        document.getElementById('userName').textContent = user.displayName || user.email;
+      } else {
+        // clear local cache on sign-out
+        localStorage.removeItem('nytMiniCompleted');
+        localStorage.removeItem('nytMiniInProgress');
+        document.getElementById('loginBtn').classList.remove('hidden');
+        document.getElementById('logoutBtn').classList.add('hidden');
+        document.getElementById('userName').textContent = '';
+      }
+    });
 
-<body>
-    <div
-  id="authControls"
-  class="fixed top-4 right-4 z-50 flex items-center gap-2"
->
-  <button
-    id="loginBtn"
-    class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded"
-  >
-    Sign In
-  </button>
-  <button
-    id="logoutBtn"
-    class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded hidden"
-  >
-    Sign Out
-  </button>
-  <span id="userName" class="text-white font-medium"></span>
-</div>
+    // 3) Helper to push localStorage back up to Firestore
+    function syncToFirestore() {
+      if (!userRef) return;
+      const completed  = JSON.parse(localStorage.getItem('nytMiniCompleted')  || '[]');
+      const inProgress = JSON.parse(localStorage.getItem('nytMiniInProgress') || '[]');
+      userRef.set({ completed, inProgress }, { merge: true })
+             .catch(console.error);
+    }
+
+    // 4) Wrap your existing handlers so every action synchronizes
+    //    (these assume startPuzzle, markCompleted, resetPuzzle are global)
+    const _start  = window.startPuzzle;
+    window.startPuzzle   = dateStr => { _start(dateStr);   syncToFirestore(); };
+    const _mark   = window.markCompleted;
+    window.markCompleted = dateStr => { _mark(dateStr);    syncToFirestore(); };
+    const _reset  = window.resetPuzzle;
+    window.resetPuzzle   = dateStr => { _reset(dateStr);   syncToFirestore(); };
+  </script>
+  <!-- ─── END INSERT SNIPPET ─────────────────────────────────────────────── -->
+
+  <!-- next in your file comes the Auth-controls div, then <div id="root">, then your React code… -->
+  <div id="authControls" class="fixed top-4 right-4 z-50 flex items-center gap-2">
+    <!-- … -->
+  </div>
+
     <div id="root"></div>
     
     <script type="text/babel">
