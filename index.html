@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NYT Mini Puzzle Tracker</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes slide-in {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        @keyframes scale-in {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+        
+        @keyframes gradient-shift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .animate-fade-in {
+            animation: fade-in 0.6s ease-out;
+        }
+        
+        .animate-slide-in {
+            animation: slide-in 0.4s ease-out;
+        }
+        
+        .animate-scale-in {
+            animation: scale-in 0.3s ease-out;
+        }
+        
+        .animate-pulse-glow {
+            animation: pulse-glow 2s ease-in-out infinite;
+        }
+        
+        .animate-gradient {
+            background-size: 200% 200%;
+            animation: gradient-shift 4s ease infinite;
+        }
+        
+        .header-glow {
+            text-shadow: 0 0 40px rgba(59, 130, 246, 0.5), 
+                         0 0 80px rgba(139, 92, 246, 0.3);
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+        
+        // Icon components
+        const Calendar = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+        );
+        
+        const CheckCircle = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+        );
+        
+        const Circle = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+            </svg>
+        );
+        
+        const Clock = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+        );
+        
+        const PlayCircle = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polygon points="10 8 16 12 10 16 10 8"></polygon>
+            </svg>
+        );
+        
+        const TrendingUp = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                <polyline points="17 6 23 6 23 12"></polyline>
+            </svg>
+        );
+        
+        const Award = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="8" r="7"></circle>
+                <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
+            </svg>
+        );
+        
+        const Trophy = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
+                <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
+                <path d="M4 22h16"></path>
+                <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path>
+                <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path>
+                <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path>
+            </svg>
+        );
+        
+        const ArrowLeft = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+        );
+        
+        const Grid = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+        );
+        
+        const Sparkles = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path>
+                <path d="M5 3v4"></path>
+                <path d="M19 17v4"></path>
+                <path d="M3 5h4"></path>
+                <path d="M17 19h4"></path>
+            </svg>
+        );
+
+        const NYTMiniTracker = () => {
+            const [currentView, setCurrentView] = useState('dashboard');
+            const [completedPuzzles, setCompletedPuzzles] = useState(() => {
+                const saved = localStorage.getItem('nytMiniCompleted');
+                return saved ? new Set(JSON.parse(saved)) : new Set();
+            });
+            const [inProgressPuzzles, setInProgressPuzzles] = useState(() => {
+                const saved = localStorage.getItem('nytMiniInProgress');
+                return saved ? new Set(JSON.parse(saved)) : new Set();
+            });
+            const [selectedFilter, setSelectedFilter] = useState('notStarted');
+            const [hoveredDate, setHoveredDate] = useState(null);
+
+            // Save state to localStorage
+            useEffect(() => {
+                localStorage.setItem('nytMiniCompleted', JSON.stringify([...completedPuzzles]));
+            }, [completedPuzzles]);
+
+            useEffect(() => {
+                localStorage.setItem('nytMiniInProgress', JSON.stringify([...inProgressPuzzles]));
+            }, [inProgressPuzzles]);
+
+            // Generate all dates from Jan 1, 2015 to today
+            const getAllDates = () => {
+                const dates = [];
+                const startDate = new Date(2015, 0, 1);
+                const endDate = new Date();
+                
+                for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                    dates.push(new Date(d));
+                }
+                
+                return dates;
+            };
+
+            const allDates = useMemo(() => getAllDates(), []);
+
+            // Format date for URL
+            const formatDateForURL = (date) => {
+                const year = date.getFullYear();
+                const month = date.getMonth() + 1;
+                const day = date.getDate();
+                return `${year}/${month}/${day}`;
+            };
+
+            // Format date for display
+            const formatDateForDisplay = (date) => {
+                return date.toLocaleDateString('en-US', { 
+                    weekday: 'short', 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                });
+            };
+
+            // Categorize puzzles
+            const categorizedPuzzles = useMemo(() => {
+                const notStarted = [];
+                const inProgress = [];
+                const completed = [];
+
+                allDates.forEach(date => {
+                    const dateStr = formatDateForURL(date);
+                    if (completedPuzzles.has(dateStr)) {
+                        completed.push(date);
+                    } else if (inProgressPuzzles.has(dateStr)) {
+                        inProgress.push(date);
+                    } else {
+                        notStarted.push(date);
+                    }
+                });
+
+                return { notStarted, inProgress, completed };
+            }, [allDates, completedPuzzles, inProgressPuzzles]);
+
+            // Start puzzle - move to in progress
+            const startPuzzle = (dateStr) => {
+                const newInProgress = new Set(inProgressPuzzles);
+                newInProgress.add(dateStr);
+                setInProgressPuzzles(newInProgress);
+                
+                // Open puzzle in new tab
+                window.open(`https://www.nytimes.com/crosswords/game/mini/${dateStr}`, '_blank');
+            };
+
+            // Mark as completed
+            const markCompleted = (dateStr) => {
+                // Remove from in progress if it's there
+                const newInProgress = new Set(inProgressPuzzles);
+                newInProgress.delete(dateStr);
+                setInProgressPuzzles(newInProgress);
+                
+                // Add to completed
+                const newCompleted = new Set(completedPuzzles);
+                newCompleted.add(dateStr);
+                setCompletedPuzzles(newCompleted);
+            };
+
+            // Move back to not started
+            const resetPuzzle = (dateStr) => {
+                const newInProgress = new Set(inProgressPuzzles);
+                newInProgress.delete(dateStr);
+                setInProgressPuzzles(newInProgress);
+                
+                const newCompleted = new Set(completedPuzzles);
+                newCompleted.delete(dateStr);
+                setCompletedPuzzles(newCompleted);
+            };
+
+            // Get stats
+            const stats = useMemo(() => {
+                const total = allDates.length;
+                const completed = completedPuzzles.size;
+                const inProgress = inProgressPuzzles.size;
+                const notStarted = total - completed - inProgress;
+                const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+                
+                // Find streak
+                let currentStreak = 0;
+                let tempStreak = 0;
+                
+                const sortedDates = [...allDates].reverse();
+                for (const date of sortedDates) {
+                    const dateStr = formatDateForURL(date);
+                    if (completedPuzzles.has(dateStr)) {
+                        tempStreak++;
+                        if (date.toDateString() === new Date().toDateString() || 
+                            date.toDateString() === new Date(Date.now() - 86400000).toDateString()) {
+                            currentStreak = tempStreak;
+                        }
+                    } else {
+                        tempStreak = 0;
+                    }
+                }
+                
+                return { total, completed, inProgress, notStarted, percentage, currentStreak };
+            }, [allDates, completedPuzzles, inProgressPuzzles]);
+
+            // Group dates by month for calendar view
+            const datesByMonth = useMemo(() => {
+                const grouped = {};
+                allDates.forEach(date => {
+                    const key = `${date.getFullYear()}-${date.getMonth()}`;
+                    if (!grouped[key]) {
+                        grouped[key] = [];
+                    }
+                    grouped[key].push(date);
+                });
+                return grouped;
+            }, [allDates]);
+
+            // Puzzle Card Component
+            const PuzzleCard = ({ date, status }) => {
+                const dateStr = formatDateForURL(date);
+                const isToday = date.toDateString() === new Date().toDateString();
+                
+                return (
+                    <div className="bg-white/10 backdrop-blur-lg rounded-lg p-4 border border-white/20 hover:bg-white/15 transition-all animate-slide-in">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className={`text-sm font-medium ${isToday ? 'text-yellow-300' : 'text-gray-300'}`}>
+                                {formatDateForDisplay(date)}
+                            </span>
+                            {isToday && <span className="text-xs bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded">Today</span>}
+                        </div>
+                        
+                        <div className="flex gap-2">
+                            {status === 'notStarted' && (
+                                <button
+                                    onClick={() => startPuzzle(dateStr)}
+                                    className="flex-1 bg-blue-500/20 text-blue-300 py-2 px-3 rounded flex items-center justify-center gap-2 hover:bg-blue-500/30 transition-all"
+                                >
+                                    <PlayCircle />
+                                    <span className="text-sm">Start</span>
+                                </button>
+                            )}
+                            
+                            {status === 'inProgress' && (
+                                <>
+                                    <button
+                                        onClick={() => window.open(`https://www.nytimes.com/crosswords/game/mini/${dateStr}`, '_blank')}
+                                        className="flex-1 bg-yellow-500/20 text-yellow-300 py-2 px-3 rounded flex items-center justify-center gap-2 hover:bg-yellow-500/30 transition-all"
+                                    >
+                                        <Clock />
+                                        <span className="text-sm">Continue</span>
+                                    </button>
+                                    <button
+                                        onClick={() => markCompleted(dateStr)}
+                                        className="bg-green-500/20 text-green-300 py-2 px-3 rounded hover:bg-green-500/30 transition-all"
+                                    >
+                                        <CheckCircle />
+                                    </button>
+                                </>
+                            )}
+                            
+                            {status === 'completed' && (
+                                <>
+                                    <button
+                                        onClick={() => window.open(`https://www.nytimes.com/crosswords/game/mini/${dateStr}`, '_blank')}
+                                        className="flex-1 bg-green-500/20 text-green-300 py-2 px-3 rounded flex items-center justify-center gap-2 hover:bg-green-500/30 transition-all"
+                                    >
+                                        <Trophy />
+                                        <span className="text-sm">View Again</span>
+                                    </button>
+                                    <button
+                                        onClick={() => resetPuzzle(dateStr)}
+                                        className="bg-gray-500/20 text-gray-300 py-2 px-3 rounded hover:bg-gray-500/30 transition-all"
+                                        title="Reset puzzle"
+                                    >
+                                        <Circle />
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            // Sexy Header Component
+            const SexyHeader = () => (
+                <div className="relative overflow-hidden mb-8 animate-fade-in">
+                    {/* Background glow effect */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 blur-3xl animate-pulse-glow"></div>
+                    
+                    {/* Content */}
+                    <div className="relative text-center py-8">
+                        <div className="flex items-center justify-center gap-3 mb-4">
+                            <Sparkles />
+                            <h1 className="text-6xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 animate-gradient header-glow">
+                                NYT Mini Tracker
+                            </h1>
+                            <Sparkles />
+                        </div>
+                        <p className="text-xl text-gray-300 font-light">
+                            Track your journey through <span className="text-blue-300 font-semibold">{stats.total.toLocaleString()}</span> daily puzzles since 2015
+                        </p>
+                        <div className="mt-4 flex items-center justify-center gap-8 text-sm">
+                            <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
+                                <span className="text-gray-400">Not Started</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
+                                <span className="text-yellow-400">In Progress</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-green-400 rounded-full"></div>
+                                <span className="text-green-400">Completed</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            // Main Dashboard View
+            if (currentView === 'dashboard') {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white p-4">
+                        <div className="max-w-7xl mx-auto">
+                            <SexyHeader />
+
+                            {/* Stats Dashboard */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                                <button
+                                    onClick={() => setCurrentView('calendar')}
+                                    className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20 transform hover:scale-105 transition-all text-left group"
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-gray-300 text-sm">Not Started</p>
+                                            <p className="text-3xl font-bold">{stats.notStarted}</p>
+                                            <p className="text-xs text-blue-300 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">View calendar →</p>
+                                        </div>
+                                        <Circle />
+                                    </div>
+                                </button>
+                                
+                                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20 transform hover:scale-105 transition-all">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-gray-300 text-sm">In Progress</p>
+                                            <p className="text-3xl font-bold">{stats.inProgress}</p>
+                                        </div>
+                                        <Clock />
+                                    </div>
+                                </div>
+                                
+                                <button
+                                    onClick={() => setCurrentView('completed')}
+                                    className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20 transform hover:scale-105 transition-all text-left group"
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-gray-300 text-sm">Completed</p>
+                                            <p className="text-3xl font-bold">{stats.completed}</p>
+                                            <p className="text-xs text-green-300 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">View all →</p>
+                                        </div>
+                                        <CheckCircle />
+                                    </div>
+                                </button>
+                                
+                                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20 transform hover:scale-105 transition-all">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-gray-300 text-sm">Current Streak</p>
+                                            <p className="text-3xl font-bold">{stats.currentStreak}</p>
+                                        </div>
+                                        <Award />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Progress Bar */}
+                            <div className="mb-8">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm text-gray-300">Overall Progress</span>
+                                    <span className="text-sm text-gray-300">{stats.percentage}%</span>
+                                </div>
+                                <div className="w-full bg-white/10 rounded-full h-4 overflow-hidden">
+                                    <div 
+                                        className="h-full bg-gradient-to-r from-blue-400 to-purple-400 transition-all duration-1000 ease-out"
+                                        style={{ width: `${stats.percentage}%` }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Filter Tabs */}
+                            <div className="flex gap-2 mb-6 flex-wrap">
+                                <button
+                                    onClick={() => setSelectedFilter('notStarted')}
+                                    className={`px-6 py-3 rounded-lg font-medium transition-all ${
+                                        selectedFilter === 'notStarted' 
+                                            ? 'bg-gray-500 text-white' 
+                                            : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                                    }`}
+                                >
+                                    Not Started ({stats.notStarted})
+                                </button>
+                                <button
+                                    onClick={() => setSelectedFilter('inProgress')}
+                                    className={`px-6 py-3 rounded-lg font-medium transition-all ${
+                                        selectedFilter === 'inProgress' 
+                                            ? 'bg-yellow-500 text-white' 
+                                            : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                                    }`}
+                                >
+                                    In Progress ({stats.inProgress})
+                                </button>
+                                <button
+                                    onClick={() => setSelectedFilter('recent')}
+                                    className={`px-6 py-3 rounded-lg font-medium transition-all ${
+                                        selectedFilter === 'recent' 
+                                            ? 'bg-blue-500 text-white' 
+                                            : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                                    }`}
+                                >
+                                    Recent Puzzles
+                                </button>
+                                <button
+                                    onClick={() => setCurrentView('calendar')}
+                                    className="px-6 py-3 rounded-lg font-medium bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition-all flex items-center gap-2"
+                                >
+                                    <Grid />
+                                    <span>View All Puzzles</span>
+                                </button>
+                            </div>
+
+                            {/* Puzzle Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {selectedFilter === 'notStarted' && 
+                                    categorizedPuzzles.notStarted.slice(-30).reverse().map(date => (
+                                        <PuzzleCard key={formatDateForURL(date)} date={date} status="notStarted" />
+                                    ))
+                                }
+                                
+                                {selectedFilter === 'inProgress' && 
+                                    categorizedPuzzles.inProgress.reverse().map(date => (
+                                        <PuzzleCard key={formatDateForURL(date)} date={date} status="inProgress" />
+                                    ))
+                                }
+                                
+                                {selectedFilter === 'recent' && 
+                                    allDates.slice(-30).reverse().map(date => {
+                                        const dateStr = formatDateForURL(date);
+                                        const status = completedPuzzles.has(dateStr) ? 'completed' : 
+                                                      inProgressPuzzles.has(dateStr) ? 'inProgress' : 'notStarted';
+                                        return <PuzzleCard key={dateStr} date={date} status={status} />;
+                                    })
+                                }
+                            </div>
+                            
+                            {/* Show more indicator */}
+                            {selectedFilter === 'notStarted' && categorizedPuzzles.notStarted.length > 30 && (
+                                <div className="text-center mt-6">
+                                    <p className="text-gray-400 mb-2">
+                                        Showing most recent 30 puzzles
+                                    </p>
+                                    <button
+                                        onClick={() => setCurrentView('calendar')}
+                                        className="text-blue-400 hover:text-blue-300 underline transition-colors"
+                                    >
+                                        {categorizedPuzzles.notStarted.length - 30} more available →
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+
+            // Calendar View
+            if (currentView === 'calendar') {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white p-4">
+                        <div className="max-w-7xl mx-auto">
+                            {/* Header with Back Button */}
+                            <div className="flex items-center gap-4 mb-8">
+                                <button
+                                    onClick={() => setCurrentView('dashboard')}
+                                    className="bg-white/10 backdrop-blur-lg p-3 rounded-lg hover:bg-white/20 transition-all"
+                                >
+                                    <ArrowLeft />
+                                </button>
+                                <div className="flex-1">
+                                    <h1 className="text-3xl font-bold mb-1">All Puzzles Calendar</h1>
+                                    <p className="text-gray-300">Browse through all {stats.total.toLocaleString()} puzzles</p>
+                                </div>
+                            </div>
+
+                            {/* Quick Stats */}
+                            <div className="grid grid-cols-3 gap-4 mb-8">
+                                <div className="bg-white/10 backdrop-blur-lg rounded-lg p-4 text-center">
+                                    <p className="text-2xl font-bold text-gray-300">{stats.notStarted}</p>
+                                    <p className="text-sm text-gray-400">Not Started</p>
+                                </div>
+                                <div className="bg-white/10 backdrop-blur-lg rounded-lg p-4 text-center">
+                                    <p className="text-2xl font-bold text-yellow-300">{stats.inProgress}</p>
+                                    <p className="text-sm text-gray-400">In Progress</p>
+                                </div>
+                                <div className="bg-white/10 backdrop-blur-lg rounded-lg p-4 text-center">
+                                    <p className="text-2xl font-bold text-green-300">{stats.completed}</p>
+                                    <p className="text-sm text-gray-400">Completed</p>
+                                </div>
+                            </div>
+
+                            {/* Calendar Grid */}
+                            <div className="space-y-8">
+                                {Object.entries(datesByMonth).reverse().map(([monthKey, dates]) => {
+                                    const [year, month] = monthKey.split('-');
+                                    const monthName = new Date(year, month).toLocaleDateString('en-US', { 
+                                        month: 'long', 
+                                        year: 'numeric' 
+                                    });
+                                    
+                                    return (
+                                        <div key={monthKey} className="bg-white/5 backdrop-blur-lg rounded-xl p-6 border border-white/10">
+                                            <h3 className="text-xl font-semibold mb-4 text-blue-300">{monthName}</h3>
+                                            <div className="grid grid-cols-7 gap-2">
+                                                {dates.map(date => {
+                                                    const dateStr = formatDateForURL(date);
+                                                    const isCompleted = completedPuzzles.has(dateStr);
+                                                    const isInProgress = inProgressPuzzles.has(dateStr);
+                                                    const isToday = date.toDateString() === new Date().toDateString();
+                                                    
+                                                    return (
+                                                        <div
+                                                            key={dateStr}
+                                                            className="relative group"
+                                                            onMouseEnter={() => setHoveredDate(date)}
+                                                            onMouseLeave={() => setHoveredDate(null)}
+                                                        >
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (!isCompleted && !isInProgress) {
+                                                                        startPuzzle(dateStr);
+                                                                    } else {
+                                                                        window.open(`https://www.nytimes.com/crosswords/game/mini/${dateStr}`, '_blank');
+                                                                    }
+                                                                }}
+                                                                className={`w-full aspect-square rounded-lg flex items-center justify-center text-sm font-medium transition-all transform hover:scale-110 ${
+                                                                    isCompleted 
+                                                                        ? 'bg-green-500/30 text-green-300 border-2 border-green-400' 
+                                                                        : isInProgress
+                                                                        ? 'bg-yellow-500/30 text-yellow-300 border-2 border-yellow-400'
+                                                                        : isToday
+                                                                        ? 'bg-blue-500/30 text-blue-300 border-2 border-blue-400'
+                                                                        : 'bg-white/10 text-gray-300 hover:bg-white/20 border border-white/10'
+                                                                }`}
+                                                            >
+                                                                {date.getDate()}
+                                                            </button>
+                                                            
+                                                            {hoveredDate === date && (
+                                                                <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10">
+                                                                    <div>{formatDateForDisplay(date)}</div>
+                                                                    <div className="text-xs mt-1">
+                                                                        {isCompleted ? '✓ Completed' : isInProgress ? '⏱ In Progress' : 'Click to start'}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // Completed Puzzles View
+            if (currentView === 'completed') {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white p-4">
+                        <div className="max-w-7xl mx-auto">
+                            {/* Header with Back Button */}
+                            <div className="flex items-center gap-4 mb-8">
+                                <button
+                                    onClick={() => setCurrentView('dashboard')}
+                                    className="bg-white/10 backdrop-blur-lg p-3 rounded-lg hover:bg-white/20 transition-all"
+                                >
+                                    <ArrowLeft />
+                                </button>
+                                <div className="flex-1">
+                                    <h1 className="text-3xl font-bold mb-1">Completed Puzzles</h1>
+                                    <p className="text-gray-300">You've completed {stats.completed} puzzles!</p>
+                                </div>
+                            </div>
+
+                            {/* Completion Stats */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+                                    <Trophy />
+                                    <h3 className="text-2xl font-bold mb-1 mt-3">{stats.completed}</h3>
+                                    <p className="text-gray-300">Total Completed</p>
+                                </div>
+                                
+                                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+                                    <TrendingUp />
+                                    <h3 className="text-2xl font-bold mb-1 mt-3">{stats.percentage}%</h3>
+                                    <p className="text-gray-300">Completion Rate</p>
+                                </div>
+                                
+                                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+                                    <Award />
+                                    <h3 className="text-2xl font-bold mb-1 mt-3">{stats.currentStreak} days</h3>
+                                    <p className="text-gray-300">Current Streak</p>
+                                </div>
+                            </div>
+
+                            {/* Completed Puzzles Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {categorizedPuzzles.completed.slice().reverse().map(date => (
+                                    <PuzzleCard key={formatDateForURL(date)} date={date} status="completed" />
+                                ))}
+                            </div>
+                            
+                            {categorizedPuzzles.completed.length === 0 && (
+                                <div className="text-center py-12">
+                                    <Trophy />
+                                    <p className="text-gray-400 mt-4">No completed puzzles yet. Start solving to see them here!</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+        };
+
+        // Render the app
+        ReactDOM.render(<NYTMiniTracker />, document.getElementById('root'));
+    </script>
+</body>
+</html>
