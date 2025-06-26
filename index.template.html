@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NYT Mini Puzzle Tracker</title>
@@ -82,56 +81,35 @@
             background: rgba(255, 255, 255, 0.5);
         }
     </style>
-<!-- Firebase compat SDKs -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script>
-  const firebaseConfig = {
-    apiKey: "AIzaSyB3FOWXTT-QJWqyZLzWu2wzKNEzSeZ57hI",
-    authDomain: "nyt-the-mini-tracker.firebaseapp.com",
-    projectId: "nyt-the-mini-tracker",
-    storageBucket: "nyt-the-mini-tracker.firebasestorage.app",
-    messagingSenderId: "218822621674",
-    appId: "1:218822621674:web:a7123d34c46bb6d5d11a93"
-  };
-  // initialize
-  firebase.initializeApp(firebaseConfig);
-  window.auth = firebase.auth();
-  window.db   = firebase.firestore();
-</script>
-
-
+    <!-- Firebase compat SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+    <script>
+      // IMPORTANT: Replace these with environment variables or a secure configuration service
+      // DO NOT commit real API keys to GitHub
+      const firebaseConfig = {
+        apiKey: "FIREBASE_API_KEY",
+        authDomain: "nyt-the-mini-tracker.firebaseapp.com",
+        projectId: "nyt-the-mini-tracker",
+        storageBucket: "nyt-the-mini-tracker.firebasestorage.app",
+        messagingSenderId: "218822621674",
+        appId: "1:218822621674:web:a7123d34c46bb6d5d11a93"
+      };
+      
+      // Initialize Firebase
+      firebase.initializeApp(firebaseConfig);
+      window.auth = firebase.auth();
+      window.db = firebase.firestore();
+    </script>
 </head>
-  <!-- Auth controls: fixed top-right -->
-  
-
-
 <body>
-    <div
-  id="authControls"
-  class="fixed top-4 right-4 z-50 flex items-center gap-2"
->
-  <button
-    id="loginBtn"
-    class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded"
-  >
-    Sign In
-  </button>
-  <button
-    id="logoutBtn"
-    class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded hidden"
-  >
-    Sign Out
-  </button>
-  <span id="userName" class="text-white font-medium"></span>
-</div>
     <div id="root"></div>
     
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
         
-        // Icon components
+        // Icon components (keeping all the existing icons)
         const Calendar = () => (
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
@@ -218,28 +196,88 @@
                 <path d="M17 19h4"></path>
             </svg>
         );
+        
+        const User = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+        );
+        
+        const LogOut = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+        );
 
         const NYTMiniTracker = () => {
             const [currentView, setCurrentView] = useState('dashboard');
-            const [completedPuzzles, setCompletedPuzzles] = useState(() => {
-                const saved = localStorage.getItem('nytMiniCompleted');
-                return saved ? new Set(JSON.parse(saved)) : new Set();
-            });
-            const [inProgressPuzzles, setInProgressPuzzles] = useState(() => {
-                const saved = localStorage.getItem('nytMiniInProgress');
-                return saved ? new Set(JSON.parse(saved)) : new Set();
-            });
+            const [user, setUser] = useState(null);
+            const [completedPuzzles, setCompletedPuzzles] = useState(new Set());
+            const [inProgressPuzzles, setInProgressPuzzles] = useState(new Set());
             const [selectedFilter, setSelectedFilter] = useState('notStarted');
             const [hoveredDate, setHoveredDate] = useState(null);
+            const [loading, setLoading] = useState(true);
 
-            // Save state to localStorage
+            // Listen for auth state changes
             useEffect(() => {
-                localStorage.setItem('nytMiniCompleted', JSON.stringify([...completedPuzzles]));
-            }, [completedPuzzles]);
+                const unsubscribe = window.auth.onAuthStateChanged((authUser) => {
+                    setUser(authUser);
+                    if (authUser) {
+                        // Load user data from Firestore
+                        loadUserData(authUser.uid);
+                    } else {
+                        // Clear data if user logs out
+                        setCompletedPuzzles(new Set());
+                        setInProgressPuzzles(new Set());
+                        setLoading(false);
+                    }
+                });
 
+                return () => unsubscribe();
+            }, []);
+
+            // Load user data from Firestore
+            const loadUserData = async (userId) => {
+                try {
+                    setLoading(true);
+                    const userDoc = await window.db.collection('users').doc(userId).get();
+                    
+                    if (userDoc.exists) {
+                        const data = userDoc.data();
+                        setCompletedPuzzles(new Set(data.completedPuzzles || []));
+                        setInProgressPuzzles(new Set(data.inProgressPuzzles || []));
+                    }
+                } catch (error) {
+                    console.error('Error loading user data:', error);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            // Save user data to Firestore
+            const saveUserData = async () => {
+                if (!user) return;
+
+                try {
+                    await window.db.collection('users').doc(user.uid).set({
+                        completedPuzzles: [...completedPuzzles],
+                        inProgressPuzzles: [...inProgressPuzzles],
+                        lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                } catch (error) {
+                    console.error('Error saving user data:', error);
+                }
+            };
+
+            // Save data whenever puzzles change
             useEffect(() => {
-                localStorage.setItem('nytMiniInProgress', JSON.stringify([...inProgressPuzzles]));
-            }, [inProgressPuzzles]);
+                if (user && !loading) {
+                    saveUserData();
+                }
+            }, [completedPuzzles, inProgressPuzzles]);
 
             // Generate all dates from Jan 1, 2015 to today
             const getAllDates = () => {
@@ -296,6 +334,11 @@
 
             // Start puzzle - move to in progress
             const startPuzzle = (dateStr) => {
+                if (!user) {
+                    alert('Please sign in to track your progress!');
+                    return;
+                }
+
                 const newInProgress = new Set(inProgressPuzzles);
                 newInProgress.add(dateStr);
                 setInProgressPuzzles(newInProgress);
@@ -306,6 +349,8 @@
 
             // Mark as completed
             const markCompleted = (dateStr) => {
+                if (!user) return;
+
                 // Remove from in progress if it's there
                 const newInProgress = new Set(inProgressPuzzles);
                 newInProgress.delete(dateStr);
@@ -319,6 +364,8 @@
 
             // Move back to not started
             const resetPuzzle = (dateStr) => {
+                if (!user) return;
+
                 const newInProgress = new Set(inProgressPuzzles);
                 newInProgress.delete(dateStr);
                 setInProgressPuzzles(newInProgress);
@@ -369,6 +416,54 @@
                 });
                 return grouped;
             }, [allDates]);
+
+            // Sign in with Google
+            const signInWithGoogle = async () => {
+                try {
+                    const provider = new firebase.auth.GoogleAuthProvider();
+                    await window.auth.signInWithPopup(provider);
+                } catch (error) {
+                    console.error('Error signing in:', error);
+                }
+            };
+
+            // Sign out
+            const signOut = async () => {
+                try {
+                    await window.auth.signOut();
+                } catch (error) {
+                    console.error('Error signing out:', error);
+                }
+            };
+
+            // Auth Controls Component
+            const AuthControls = () => (
+                <div className="fixed top-4 right-4 z-50 flex items-center gap-3">
+                    {user ? (
+                        <>
+                            <div className="bg-white/10 backdrop-blur-lg rounded-lg px-4 py-2 flex items-center gap-2 border border-white/20">
+                                <User />
+                                <span className="text-white font-medium">{user.displayName || user.email}</span>
+                            </div>
+                            <button
+                                onClick={signOut}
+                                className="bg-white/10 backdrop-blur-lg text-white px-4 py-2 rounded-lg hover:bg-white/20 transition-all flex items-center gap-2 border border-white/20"
+                            >
+                                <LogOut />
+                                <span>Sign Out</span>
+                            </button>
+                        </>
+                    ) : (
+                        <button
+                            onClick={signInWithGoogle}
+                            className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-6 py-2 rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all flex items-center gap-2 font-medium animate-pulse-glow"
+                        >
+                            <User />
+                            <span>Sign In to Track Progress</span>
+                        </button>
+                    )}
+                </div>
+            );
 
             // Puzzle Card Component
             const PuzzleCard = ({ date, status }) => {
@@ -454,6 +549,9 @@
                         <p className="text-xl text-gray-300 font-light">
                             Track your journey through <span className="text-blue-300 font-semibold">{stats.total.toLocaleString()}</span> daily puzzles since 2015
                         </p>
+                        {!user && (
+                            <p className="mt-2 text-yellow-300 text-sm">Sign in to save your progress!</p>
+                        )}
                         <div className="mt-4 flex items-center justify-center gap-8 text-sm">
                             <div className="flex items-center gap-2">
                                 <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
@@ -472,11 +570,24 @@
                 </div>
             );
 
+            // Loading state
+            if (loading) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white flex items-center justify-center">
+                        <div className="text-center">
+                            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-400 mx-auto mb-4"></div>
+                            <p className="text-xl">Loading your puzzles...</p>
+                        </div>
+                    </div>
+                );
+            }
+
             // Main Dashboard View
             if (currentView === 'dashboard') {
                 return (
                     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white p-4">
-                        <div className="max-w-7xl mx-auto">
+                        <AuthControls />
+                        <div className="max-w-7xl mx-auto pt-16">
                             <SexyHeader />
 
                             {/* Stats Dashboard */}
@@ -632,7 +743,8 @@
             if (currentView === 'calendar') {
                 return (
                     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white p-4">
-                        <div className="max-w-7xl mx-auto">
+                        <AuthControls />
+                        <div className="max-w-7xl mx-auto pt-16">
                             {/* Header with Back Button */}
                             <div className="flex items-center gap-4 mb-8">
                                 <button
@@ -735,7 +847,8 @@
             if (currentView === 'completed') {
                 return (
                     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white p-4">
-                        <div className="max-w-7xl mx-auto">
+                        <AuthControls />
+                        <div className="max-w-7xl mx-auto pt-16">
                             {/* Header with Back Button */}
                             <div className="flex items-center gap-4 mb-8">
                                 <button
@@ -793,37 +906,5 @@
         // Render the app
         ReactDOM.render(<NYTMiniTracker />, document.getElementById('root'));
     </script>
-  <!-- Auth logic for those buttons -->
-  <script>
-    const loginBtn  = document.getElementById('loginBtn');
-    const logoutBtn = document.getElementById('logoutBtn');
-    const userName  = document.getElementById('userName');
-
-    loginBtn.addEventListener('click', () => {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      firebase.auth().signInWithPopup(provider).catch(console.error);
-    });
-
-    logoutBtn.addEventListener('click', () => {
-      firebase.auth().signOut();
-    });
-
-    firebase.auth().onAuthStateChanged(user => {
-      if (user) {
-        loginBtn.classList.add('hidden');
-        logoutBtn.classList.remove('hidden');
-        userName.textContent = user.displayName || user.email;
-      } else {
-        loginBtn.classList.remove('hidden');
-        logoutBtn.classList.add('hidden');
-        userName.textContent = '';
-      }
-    });
-  </script>
-</body>
-</html>
-
-
-
 </body>
 </html>
