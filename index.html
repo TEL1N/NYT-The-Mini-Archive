@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NYT Mini Puzzle Tracker</title>
@@ -81,8 +82,50 @@
             background: rgba(255, 255, 255, 0.5);
         }
     </style>
+<!-- Firebase compat SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyB3FOWXTT-QJWqyZLzWu2wzKNEzSeZ57hI",
+    authDomain: "nyt-the-mini-tracker.firebaseapp.com",
+    projectId: "nyt-the-mini-tracker",
+    storageBucket: "nyt-the-mini-tracker.firebasestorage.app",
+    messagingSenderId: "218822621674",
+    appId: "1:218822621674:web:a7123d34c46bb6d5d11a93"
+  };
+  // initialize
+  firebase.initializeApp(firebaseConfig);
+  window.auth = firebase.auth();
+  window.db   = firebase.firestore();
+</script>
+
+
 </head>
+  <!-- Auth controls: fixed top-right -->
+  
+
+
 <body>
+    <div
+  id="authControls"
+  class="fixed top-4 right-4 z-50 flex items-center gap-2"
+>
+  <button
+    id="loginBtn"
+    class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded"
+  >
+    Sign In
+  </button>
+  <button
+    id="logoutBtn"
+    class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded hidden"
+  >
+    Sign Out
+  </button>
+  <span id="userName" class="text-white font-medium"></span>
+</div>
     <div id="root"></div>
     
     <script type="text/babel">
@@ -750,5 +793,37 @@
         // Render the app
         ReactDOM.render(<NYTMiniTracker />, document.getElementById('root'));
     </script>
+  <!-- Auth logic for those buttons -->
+  <script>
+    const loginBtn  = document.getElementById('loginBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const userName  = document.getElementById('userName');
+
+    loginBtn.addEventListener('click', () => {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      firebase.auth().signInWithPopup(provider).catch(console.error);
+    });
+
+    logoutBtn.addEventListener('click', () => {
+      firebase.auth().signOut();
+    });
+
+    firebase.auth().onAuthStateChanged(user => {
+      if (user) {
+        loginBtn.classList.add('hidden');
+        logoutBtn.classList.remove('hidden');
+        userName.textContent = user.displayName || user.email;
+      } else {
+        loginBtn.classList.remove('hidden');
+        logoutBtn.classList.add('hidden');
+        userName.textContent = '';
+      }
+    });
+  </script>
+</body>
+</html>
+
+
+
 </body>
 </html>
