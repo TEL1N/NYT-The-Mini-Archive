@@ -20,7 +20,7 @@
         }
         
         @keyframes scale-in {
-            from { opacity: 0; transform: scale(0.9); }
+            from { opacity: 0; transform: scale(0.95); }
             to { opacity: 1; transform: scale(1); }
         }
         
@@ -33,6 +33,11 @@
             0% { background-position: 0% 50%; }
             50% { background-position: 100% 50%; }
             100% { background-position: 0% 50%; }
+        }
+        
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
         }
         
         .animate-fade-in {
@@ -56,9 +61,15 @@
             animation: gradient-shift 4s ease infinite;
         }
         
+        .shimmer {
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            background-size: 200% 100%;
+            animation: shimmer 2s infinite;
+        }
+        
         .header-glow {
-            text-shadow: 0 0 40px rgba(59, 130, 246, 0.5), 
-                         0 0 80px rgba(139, 92, 246, 0.3);
+            text-shadow: 0 0 30px rgba(99, 102, 241, 0.5), 
+                         0 0 60px rgba(99, 102, 241, 0.3);
         }
         
         /* Custom scrollbar */
@@ -68,17 +79,25 @@
         }
         
         ::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
             border-radius: 4px;
         }
         
         ::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.2);
             border-radius: 4px;
         }
         
         ::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        /* Checkbox styling */
+        .puzzle-checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: #10b981;
         }
     </style>
     <!-- Firebase compat SDKs -->
@@ -86,8 +105,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
     <script>
-      // IMPORTANT: Replace these with environment variables or a secure configuration service
-      // DO NOT commit real API keys to GitHub
       const firebaseConfig = {
         apiKey: "YOUR_API_KEY_HERE",
         authDomain: "nyt-the-mini-tracker.firebaseapp.com",
@@ -97,7 +114,6 @@
         appId: "1:218822621674:web:a7123d34c46bb6d5d11a93"
       };
       
-      // Initialize Firebase
       firebase.initializeApp(firebaseConfig);
       window.auth = firebase.auth();
       window.db = firebase.firestore();
@@ -109,7 +125,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
         
-        // Icon components (keeping all the existing icons)
+        // Icon components
         const Calendar = () => (
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
@@ -211,13 +227,19 @@
                 <line x1="21" y1="12" x2="9" y2="12"></line>
             </svg>
         );
+        
+        const Star = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
+        );
 
         const NYTMiniTracker = () => {
             const [currentView, setCurrentView] = useState('dashboard');
             const [user, setUser] = useState(null);
             const [completedPuzzles, setCompletedPuzzles] = useState(new Set());
             const [inProgressPuzzles, setInProgressPuzzles] = useState(new Set());
-            const [selectedFilter, setSelectedFilter] = useState('notStarted');
+            const [selectedFilter, setSelectedFilter] = useState('recent');
             const [hoveredDate, setHoveredDate] = useState(null);
             const [loading, setLoading] = useState(true);
 
@@ -226,10 +248,8 @@
                 const unsubscribe = window.auth.onAuthStateChanged((authUser) => {
                     setUser(authUser);
                     if (authUser) {
-                        // Load user data from Firestore
                         loadUserData(authUser.uid);
                     } else {
-                        // Clear data if user logs out
                         setCompletedPuzzles(new Set());
                         setInProgressPuzzles(new Set());
                         setLoading(false);
@@ -279,7 +299,20 @@
                 }
             }, [completedPuzzles, inProgressPuzzles]);
 
-            // Generate all dates from Jan 1, 2015 to today
+            // Generate dates
+            const getRecentDates = () => {
+                const dates = [];
+                const endDate = new Date();
+                const startDate = new Date();
+                startDate.setDate(startDate.getDate() - 90);
+                
+                for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                    dates.push(new Date(d));
+                }
+                
+                return dates;
+            };
+
             const getAllDates = () => {
                 const dates = [];
                 const startDate = new Date(2015, 0, 1);
@@ -292,6 +325,7 @@
                 return dates;
             };
 
+            const recentDates = useMemo(() => getRecentDates(), []);
             const allDates = useMemo(() => getAllDates(), []);
 
             // Format date for URL
@@ -311,6 +345,12 @@
                     day: 'numeric' 
                 });
             };
+
+            // Get today's info
+            const todayDate = new Date();
+            const todayStr = formatDateForURL(todayDate);
+            const isTodayCompleted = completedPuzzles.has(todayStr);
+            const isTodayInProgress = inProgressPuzzles.has(todayStr);
 
             // Categorize puzzles
             const categorizedPuzzles = useMemo(() => {
@@ -332,7 +372,7 @@
                 return { notStarted, inProgress, completed };
             }, [allDates, completedPuzzles, inProgressPuzzles]);
 
-            // Start puzzle - move to in progress
+            // Start puzzle
             const startPuzzle = (dateStr) => {
                 if (!user) {
                     alert('Please sign in to track your progress!');
@@ -343,7 +383,6 @@
                 newInProgress.add(dateStr);
                 setInProgressPuzzles(newInProgress);
                 
-                // Open puzzle in new tab
                 window.open(`https://www.nytimes.com/crosswords/game/mini/${dateStr}`, '_blank');
             };
 
@@ -351,18 +390,16 @@
             const markCompleted = (dateStr) => {
                 if (!user) return;
 
-                // Remove from in progress if it's there
                 const newInProgress = new Set(inProgressPuzzles);
                 newInProgress.delete(dateStr);
                 setInProgressPuzzles(newInProgress);
                 
-                // Add to completed
                 const newCompleted = new Set(completedPuzzles);
                 newCompleted.add(dateStr);
                 setCompletedPuzzles(newCompleted);
             };
 
-            // Move back to not started
+            // Reset puzzle
             const resetPuzzle = (dateStr) => {
                 if (!user) return;
 
@@ -383,7 +420,6 @@
                 const notStarted = total - completed - inProgress;
                 const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
                 
-                // Find streak
                 let currentStreak = 0;
                 let tempStreak = 0;
                 
@@ -404,7 +440,7 @@
                 return { total, completed, inProgress, notStarted, percentage, currentStreak };
             }, [allDates, completedPuzzles, inProgressPuzzles]);
 
-            // Group dates by month for calendar view
+            // Group dates by month
             const datesByMonth = useMemo(() => {
                 const grouped = {};
                 allDates.forEach(date => {
@@ -417,7 +453,7 @@
                 return grouped;
             }, [allDates]);
 
-            // Sign in with Google
+            // Sign in
             const signInWithGoogle = async () => {
                 try {
                     const provider = new firebase.auth.GoogleAuthProvider();
@@ -436,18 +472,18 @@
                 }
             };
 
-            // Auth Controls Component
+            // Components
             const AuthControls = () => (
                 <div className="fixed top-4 right-4 z-50 flex items-center gap-3">
                     {user ? (
                         <>
-                            <div className="bg-white/10 backdrop-blur-lg rounded-lg px-4 py-2 flex items-center gap-2 border border-white/20">
+                            <div className="bg-gray-800/80 backdrop-blur-lg rounded-xl px-4 py-2 flex items-center gap-2 border border-gray-700">
                                 <User />
-                                <span className="text-white font-medium">{user.displayName || user.email}</span>
+                                <span className="text-gray-200 font-medium">{user.displayName || user.email}</span>
                             </div>
                             <button
                                 onClick={signOut}
-                                className="bg-white/10 backdrop-blur-lg text-white px-4 py-2 rounded-lg hover:bg-white/20 transition-all flex items-center gap-2 border border-white/20"
+                                className="bg-gray-800/80 backdrop-blur-lg text-gray-200 px-4 py-2 rounded-xl hover:bg-gray-700/80 transition-all flex items-center gap-2 border border-gray-700"
                             >
                                 <LogOut />
                                 <span>Sign Out</span>
@@ -456,7 +492,7 @@
                     ) : (
                         <button
                             onClick={signInWithGoogle}
-                            className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-6 py-2 rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all flex items-center gap-2 font-medium animate-pulse-glow"
+                            className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-2.5 rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all flex items-center gap-2 font-medium shadow-lg shadow-indigo-500/25"
                         >
                             <User />
                             <span>Sign In to Track Progress</span>
@@ -465,14 +501,62 @@
                 </div>
             );
 
-            // Puzzle Card Component
+            const TodaysPuzzleHero = () => {
+                if (isTodayCompleted) return null;
+
+                return (
+                    <div className="relative overflow-hidden mb-8 animate-scale-in">
+                        <div className="absolute inset-0 bg-gradient-to-r from-indigo-600/20 via-purple-600/20 to-pink-600/20 blur-3xl"></div>
+                        <div className="relative bg-gray-800/50 backdrop-blur-xl rounded-2xl p-8 border border-gray-700/50">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-3">
+                                    <Star className="text-yellow-400" />
+                                    <h2 className="text-2xl font-bold text-white">Today's Puzzle</h2>
+                                </div>
+                                <span className="text-sm text-gray-400">{formatDateForDisplay(todayDate)}</span>
+                            </div>
+                            
+                            <p className="text-gray-300 mb-6">Ready for today's challenge? Jump right in!</p>
+                            
+                            <div className="flex gap-3">
+                                {isTodayInProgress ? (
+                                    <>
+                                        <button
+                                            onClick={() => window.open(`https://www.nytimes.com/crosswords/game/mini/${todayStr}`, '_blank')}
+                                            className="flex-1 bg-yellow-500/20 text-yellow-300 py-4 px-6 rounded-xl flex items-center justify-center gap-3 hover:bg-yellow-500/30 transition-all font-medium text-lg"
+                                        >
+                                            <Clock />
+                                            <span>Continue Today's Puzzle</span>
+                                        </button>
+                                        <button
+                                            onClick={() => markCompleted(todayStr)}
+                                            className="bg-green-500/20 text-green-300 py-4 px-6 rounded-xl hover:bg-green-500/30 transition-all"
+                                        >
+                                            <CheckCircle />
+                                        </button>
+                                    </>
+                                ) : (
+                                    <button
+                                        onClick={() => startPuzzle(todayStr)}
+                                        className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 px-6 rounded-xl flex items-center justify-center gap-3 hover:from-indigo-700 hover:to-purple-700 transition-all font-medium text-lg shadow-lg shadow-indigo-500/25"
+                                    >
+                                        <PlayCircle />
+                                        <span>Play Today's Puzzle</span>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
             const PuzzleCard = ({ date, status }) => {
                 const dateStr = formatDateForURL(date);
                 const isToday = date.toDateString() === new Date().toDateString();
                 
                 return (
-                    <div className="bg-white/10 backdrop-blur-lg rounded-lg p-4 border border-white/20 hover:bg-white/15 transition-all animate-slide-in">
-                        <div className="flex items-center justify-between mb-2">
+                    <div className="bg-gray-800/50 backdrop-blur-lg rounded-xl p-4 border border-gray-700/50 hover:bg-gray-700/30 transition-all animate-fade-in">
+                        <div className="flex items-center justify-between mb-3">
                             <span className={`text-sm font-medium ${isToday ? 'text-yellow-300' : 'text-gray-300'}`}>
                                 {formatDateForDisplay(date)}
                             </span>
@@ -483,7 +567,7 @@
                             {status === 'notStarted' && (
                                 <button
                                     onClick={() => startPuzzle(dateStr)}
-                                    className="flex-1 bg-blue-500/20 text-blue-300 py-2 px-3 rounded flex items-center justify-center gap-2 hover:bg-blue-500/30 transition-all"
+                                    className="flex-1 bg-indigo-600/20 text-indigo-300 py-2 px-3 rounded-lg flex items-center justify-center gap-2 hover:bg-indigo-600/30 transition-all"
                                 >
                                     <PlayCircle />
                                     <span className="text-sm">Start</span>
@@ -494,14 +578,14 @@
                                 <>
                                     <button
                                         onClick={() => window.open(`https://www.nytimes.com/crosswords/game/mini/${dateStr}`, '_blank')}
-                                        className="flex-1 bg-yellow-500/20 text-yellow-300 py-2 px-3 rounded flex items-center justify-center gap-2 hover:bg-yellow-500/30 transition-all"
+                                        className="flex-1 bg-yellow-500/20 text-yellow-300 py-2 px-3 rounded-lg flex items-center justify-center gap-2 hover:bg-yellow-500/30 transition-all"
                                     >
                                         <Clock />
                                         <span className="text-sm">Continue</span>
                                     </button>
                                     <button
                                         onClick={() => markCompleted(dateStr)}
-                                        className="bg-green-500/20 text-green-300 py-2 px-3 rounded hover:bg-green-500/30 transition-all"
+                                        className="bg-green-500/20 text-green-300 py-2 px-3 rounded-lg hover:bg-green-500/30 transition-all"
                                     >
                                         <CheckCircle />
                                     </button>
@@ -512,14 +596,14 @@
                                 <>
                                     <button
                                         onClick={() => window.open(`https://www.nytimes.com/crosswords/game/mini/${dateStr}`, '_blank')}
-                                        className="flex-1 bg-green-500/20 text-green-300 py-2 px-3 rounded flex items-center justify-center gap-2 hover:bg-green-500/30 transition-all"
+                                        className="flex-1 bg-green-500/20 text-green-300 py-2 px-3 rounded-lg flex items-center justify-center gap-2 hover:bg-green-500/30 transition-all"
                                     >
                                         <Trophy />
                                         <span className="text-sm">View Again</span>
                                     </button>
                                     <button
                                         onClick={() => resetPuzzle(dateStr)}
-                                        className="bg-gray-500/20 text-gray-300 py-2 px-3 rounded hover:bg-gray-500/30 transition-all"
+                                        className="bg-gray-600/20 text-gray-400 py-2 px-3 rounded-lg hover:bg-gray-600/30 transition-all"
                                         title="Reset puzzle"
                                     >
                                         <Circle />
@@ -531,41 +615,23 @@
                 );
             };
 
-            // Sexy Header Component
-            const SexyHeader = () => (
+            const Header = () => (
                 <div className="relative overflow-hidden mb-8 animate-fade-in">
-                    {/* Background glow effect */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 blur-3xl animate-pulse-glow"></div>
-                    
-                    {/* Content */}
-                    <div className="relative text-center py-8">
-                        <div className="flex items-center justify-center gap-3 mb-4">
-                            <Sparkles />
-                            <h1 className="text-6xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 animate-gradient header-glow">
+                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-600/10 via-purple-600/10 to-pink-600/10 blur-3xl"></div>
+                    <div className="relative text-center py-6">
+                        <div className="flex items-center justify-center gap-3 mb-3">
+                            <Grid className="text-indigo-400" />
+                            <h1 className="text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 header-glow">
                                 NYT Mini Tracker
                             </h1>
-                            <Sparkles />
+                            <Grid className="text-purple-400" />
                         </div>
-                        <p className="text-xl text-gray-300 font-light">
-                            Track your journey through <span className="text-blue-300 font-semibold">{stats.total.toLocaleString()}</span> daily puzzles since 2015
+                        <p className="text-lg text-gray-300">
+                            Track your journey through <span className="text-indigo-300 font-semibold">{stats.total.toLocaleString()}</span> daily puzzles
                         </p>
                         {!user && (
-                            <p className="mt-2 text-yellow-300 text-sm">Sign in to save your progress!</p>
+                            <p className="mt-2 text-yellow-300 text-sm animate-pulse">Sign in to save your progress!</p>
                         )}
-                        <div className="mt-4 flex items-center justify-center gap-8 text-sm">
-                            <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
-                                <span className="text-gray-400">Not Started</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
-                                <span className="text-yellow-400">In Progress</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 bg-green-400 rounded-full"></div>
-                                <span className="text-green-400">Completed</span>
-                            </div>
-                        </div>
                     </div>
                 </div>
             );
@@ -573,9 +639,9 @@
             // Loading state
             if (loading) {
                 return (
-                    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white flex items-center justify-center">
+                    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-indigo-950 to-purple-950 text-white flex items-center justify-center">
                         <div className="text-center">
-                            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-400 mx-auto mb-4"></div>
+                            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-indigo-400 mx-auto mb-4"></div>
                             <p className="text-xl">Loading your puzzles...</p>
                         </div>
                     </div>
@@ -585,119 +651,131 @@
             // Main Dashboard View
             if (currentView === 'dashboard') {
                 return (
-                    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white p-4">
+                    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-indigo-950 to-purple-950 text-white p-4">
                         <AuthControls />
                         <div className="max-w-7xl mx-auto pt-16">
-                            <SexyHeader />
+                            <Header />
+                            <TodaysPuzzleHero />
 
                             {/* Stats Dashboard */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                                 <button
                                     onClick={() => setCurrentView('calendar')}
-                                    className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20 transform hover:scale-105 transition-all text-left group"
+                                    className="bg-gray-800/50 backdrop-blur-lg rounded-xl p-6 border border-gray-700/50 transform hover:scale-105 transition-all text-left group"
                                 >
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <p className="text-gray-300 text-sm">Not Started</p>
-                                            <p className="text-3xl font-bold">{stats.notStarted}</p>
-                                            <p className="text-xs text-blue-300 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">View calendar →</p>
+                                            <p className="text-gray-400 text-sm">Not Started</p>
+                                            <p className="text-3xl font-bold text-gray-200">{stats.notStarted}</p>
+                                            <p className="text-xs text-indigo-300 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">View all →</p>
                                         </div>
-                                        <Circle />
+                                        <Circle className="text-gray-500" />
                                     </div>
                                 </button>
                                 
-                                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20 transform hover:scale-105 transition-all">
+                                <div className="bg-gray-800/50 backdrop-blur-lg rounded-xl p-6 border border-gray-700/50 transform hover:scale-105 transition-all">
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <p className="text-gray-300 text-sm">In Progress</p>
-                                            <p className="text-3xl font-bold">{stats.inProgress}</p>
+                                            <p className="text-gray-400 text-sm">In Progress</p>
+                                            <p className="text-3xl font-bold text-yellow-300">{stats.inProgress}</p>
                                         </div>
-                                        <Clock />
+                                        <Clock className="text-yellow-500" />
                                     </div>
                                 </div>
                                 
                                 <button
                                     onClick={() => setCurrentView('completed')}
-                                    className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20 transform hover:scale-105 transition-all text-left group"
+                                    className="bg-gray-800/50 backdrop-blur-lg rounded-xl p-6 border border-gray-700/50 transform hover:scale-105 transition-all text-left group"
                                 >
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <p className="text-gray-300 text-sm">Completed</p>
-                                            <p className="text-3xl font-bold">{stats.completed}</p>
+                                            <p className="text-gray-400 text-sm">Completed</p>
+                                            <p className="text-3xl font-bold text-green-300">{stats.completed}</p>
                                             <p className="text-xs text-green-300 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">View all →</p>
                                         </div>
-                                        <CheckCircle />
+                                        <CheckCircle className="text-green-500" />
                                     </div>
                                 </button>
                                 
-                                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20 transform hover:scale-105 transition-all">
+                                <div className="bg-gray-800/50 backdrop-blur-lg rounded-xl p-6 border border-gray-700/50 transform hover:scale-105 transition-all">
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <p className="text-gray-300 text-sm">Current Streak</p>
-                                            <p className="text-3xl font-bold">{stats.currentStreak}</p>
+                                            <p className="text-gray-400 text-sm">Current Streak</p>
+                                            <p className="text-3xl font-bold text-purple-300">{stats.currentStreak}</p>
                                         </div>
-                                        <Award />
+                                        <Award className="text-purple-500" />
                                     </div>
                                 </div>
                             </div>
 
                             {/* Progress Bar */}
-                            <div className="mb-8">
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm text-gray-300">Overall Progress</span>
-                                    <span className="text-sm text-gray-300">{stats.percentage}%</span>
+                            <div className="mb-8 bg-gray-800/50 backdrop-blur-lg rounded-xl p-6 border border-gray-700/50">
+                                <div className="flex items-center justify-between mb-3">
+                                    <span className="text-sm text-gray-300 font-medium">Overall Progress</span>
+                                    <span className="text-sm text-gray-300 font-medium">{stats.percentage}%</span>
                                 </div>
-                                <div className="w-full bg-white/10 rounded-full h-4 overflow-hidden">
+                                <div className="w-full bg-gray-700/50 rounded-full h-3 overflow-hidden">
                                     <div 
-                                        className="h-full bg-gradient-to-r from-blue-400 to-purple-400 transition-all duration-1000 ease-out"
+                                        className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-1000 ease-out relative"
                                         style={{ width: `${stats.percentage}%` }}
-                                    />
+                                    >
+                                        <div className="absolute inset-0 shimmer"></div>
+                                    </div>
                                 </div>
                             </div>
 
                             {/* Filter Tabs */}
                             <div className="flex gap-2 mb-6 flex-wrap">
                                 <button
+                                    onClick={() => setSelectedFilter('recent')}
+                                    className={`px-5 py-2.5 rounded-lg font-medium transition-all ${
+                                        selectedFilter === 'recent' 
+                                            ? 'bg-purple-600 text-white' 
+                                            : 'bg-gray-800/50 text-gray-300 hover:bg-gray-700/50 border border-gray-700/50'
+                                    }`}
+                                >
+                                    Recent Puzzles
+                                </button>
+                                <button
                                     onClick={() => setSelectedFilter('notStarted')}
-                                    className={`px-6 py-3 rounded-lg font-medium transition-all ${
+                                    className={`px-5 py-2.5 rounded-lg font-medium transition-all ${
                                         selectedFilter === 'notStarted' 
-                                            ? 'bg-gray-500 text-white' 
-                                            : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                                            ? 'bg-indigo-600 text-white' 
+                                            : 'bg-gray-800/50 text-gray-300 hover:bg-gray-700/50 border border-gray-700/50'
                                     }`}
                                 >
                                     Not Started ({stats.notStarted})
                                 </button>
                                 <button
                                     onClick={() => setSelectedFilter('inProgress')}
-                                    className={`px-6 py-3 rounded-lg font-medium transition-all ${
+                                    className={`px-5 py-2.5 rounded-lg font-medium transition-all ${
                                         selectedFilter === 'inProgress' 
-                                            ? 'bg-yellow-500 text-white' 
-                                            : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                                            ? 'bg-yellow-600 text-white' 
+                                            : 'bg-gray-800/50 text-gray-300 hover:bg-gray-700/50 border border-gray-700/50'
                                     }`}
                                 >
                                     In Progress ({stats.inProgress})
                                 </button>
                                 <button
-                                    onClick={() => setSelectedFilter('recent')}
-                                    className={`px-6 py-3 rounded-lg font-medium transition-all ${
-                                        selectedFilter === 'recent' 
-                                            ? 'bg-blue-500 text-white' 
-                                            : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                                    }`}
-                                >
-                                    Recent Puzzles
-                                </button>
-                                <button
                                     onClick={() => setCurrentView('calendar')}
-                                    className="px-6 py-3 rounded-lg font-medium bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition-all flex items-center gap-2"
+                                    className="px-5 py-2.5 rounded-lg font-medium bg-gray-800/50 text-purple-300 hover:bg-gray-700/50 transition-all flex items-center gap-2 border border-gray-700/50"
                                 >
-                                    <Grid />
-                                    <span>View All Puzzles</span>
+                                    <Calendar />
+                                    <span>Calendar View</span>
                                 </button>
                             </div>
 
                             {/* Puzzle Grid */}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {selectedFilter === 'recent' && 
+                                    recentDates.slice(-30).reverse().map(date => {
+                                        const dateStr = formatDateForURL(date);
+                                        const status = completedPuzzles.has(dateStr) ? 'completed' : 
+                                                      inProgressPuzzles.has(dateStr) ? 'inProgress' : 'notStarted';
+                                        return <PuzzleCard key={dateStr} date={date} status={status} />;
+                                    })
+                                }
+                                
                                 {selectedFilter === 'notStarted' && 
                                     categorizedPuzzles.notStarted.slice(-30).reverse().map(date => (
                                         <PuzzleCard key={formatDateForURL(date)} date={date} status="notStarted" />
@@ -709,28 +787,19 @@
                                         <PuzzleCard key={formatDateForURL(date)} date={date} status="inProgress" />
                                     ))
                                 }
-                                
-                                {selectedFilter === 'recent' && 
-                                    allDates.slice(-30).reverse().map(date => {
-                                        const dateStr = formatDateForURL(date);
-                                        const status = completedPuzzles.has(dateStr) ? 'completed' : 
-                                                      inProgressPuzzles.has(dateStr) ? 'inProgress' : 'notStarted';
-                                        return <PuzzleCard key={dateStr} date={date} status={status} />;
-                                    })
-                                }
                             </div>
                             
                             {/* Show more indicator */}
                             {selectedFilter === 'notStarted' && categorizedPuzzles.notStarted.length > 30 && (
-                                <div className="text-center mt-6">
-                                    <p className="text-gray-400 mb-2">
+                                <div className="text-center mt-8">
+                                    <p className="text-gray-400 mb-3">
                                         Showing most recent 30 puzzles
                                     </p>
                                     <button
                                         onClick={() => setCurrentView('calendar')}
-                                        className="text-blue-400 hover:text-blue-300 underline transition-colors"
+                                        className="text-indigo-400 hover:text-indigo-300 underline transition-colors font-medium"
                                     >
-                                        {categorizedPuzzles.notStarted.length - 30} more available →
+                                        View all {categorizedPuzzles.notStarted.length} puzzles →
                                     </button>
                                 </div>
                             )}
@@ -742,14 +811,13 @@
             // Calendar View
             if (currentView === 'calendar') {
                 return (
-                    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white p-4">
+                    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-indigo-950 to-purple-950 text-white p-4">
                         <AuthControls />
                         <div className="max-w-7xl mx-auto pt-16">
-                            {/* Header with Back Button */}
                             <div className="flex items-center gap-4 mb-8">
                                 <button
                                     onClick={() => setCurrentView('dashboard')}
-                                    className="bg-white/10 backdrop-blur-lg p-3 rounded-lg hover:bg-white/20 transition-all"
+                                    className="bg-gray-800/50 backdrop-blur-lg p-3 rounded-lg hover:bg-gray-700/50 transition-all border border-gray-700/50"
                                 >
                                     <ArrowLeft />
                                 </button>
@@ -759,24 +827,22 @@
                                 </div>
                             </div>
 
-                            {/* Quick Stats */}
                             <div className="grid grid-cols-3 gap-4 mb-8">
-                                <div className="bg-white/10 backdrop-blur-lg rounded-lg p-4 text-center">
+                                <div className="bg-gray-800/50 backdrop-blur-lg rounded-lg p-4 text-center border border-gray-700/50">
                                     <p className="text-2xl font-bold text-gray-300">{stats.notStarted}</p>
                                     <p className="text-sm text-gray-400">Not Started</p>
                                 </div>
-                                <div className="bg-white/10 backdrop-blur-lg rounded-lg p-4 text-center">
+                                <div className="bg-gray-800/50 backdrop-blur-lg rounded-lg p-4 text-center border border-gray-700/50">
                                     <p className="text-2xl font-bold text-yellow-300">{stats.inProgress}</p>
                                     <p className="text-sm text-gray-400">In Progress</p>
                                 </div>
-                                <div className="bg-white/10 backdrop-blur-lg rounded-lg p-4 text-center">
+                                <div className="bg-gray-800/50 backdrop-blur-lg rounded-lg p-4 text-center border border-gray-700/50">
                                     <p className="text-2xl font-bold text-green-300">{stats.completed}</p>
                                     <p className="text-sm text-gray-400">Completed</p>
                                 </div>
                             </div>
 
-                            {/* Calendar Grid */}
-                            <div className="space-y-8">
+                            <div className="space-y-6">
                                 {Object.entries(datesByMonth).reverse().map(([monthKey, dates]) => {
                                     const [year, month] = monthKey.split('-');
                                     const monthName = new Date(year, month).toLocaleDateString('en-US', { 
@@ -785,8 +851,8 @@
                                     });
                                     
                                     return (
-                                        <div key={monthKey} className="bg-white/5 backdrop-blur-lg rounded-xl p-6 border border-white/10">
-                                            <h3 className="text-xl font-semibold mb-4 text-blue-300">{monthName}</h3>
+                                        <div key={monthKey} className="bg-gray-800/30 backdrop-blur-lg rounded-xl p-6 border border-gray-700/50">
+                                            <h3 className="text-xl font-semibold mb-4 text-indigo-300">{monthName}</h3>
                                             <div className="grid grid-cols-7 gap-2">
                                                 {dates.map(date => {
                                                     const dateStr = formatDateForURL(date);
@@ -811,19 +877,19 @@
                                                                 }}
                                                                 className={`w-full aspect-square rounded-lg flex items-center justify-center text-sm font-medium transition-all transform hover:scale-110 ${
                                                                     isCompleted 
-                                                                        ? 'bg-green-500/30 text-green-300 border-2 border-green-400' 
+                                                                        ? 'bg-green-600/30 text-green-300 border-2 border-green-500' 
                                                                         : isInProgress
-                                                                        ? 'bg-yellow-500/30 text-yellow-300 border-2 border-yellow-400'
+                                                                        ? 'bg-yellow-600/30 text-yellow-300 border-2 border-yellow-500'
                                                                         : isToday
-                                                                        ? 'bg-blue-500/30 text-blue-300 border-2 border-blue-400'
-                                                                        : 'bg-white/10 text-gray-300 hover:bg-white/20 border border-white/10'
+                                                                        ? 'bg-indigo-600/30 text-indigo-300 border-2 border-indigo-500'
+                                                                        : 'bg-gray-700/30 text-gray-300 hover:bg-gray-600/30 border border-gray-600'
                                                                 }`}
                                                             >
                                                                 {date.getDate()}
                                                             </button>
                                                             
                                                             {hoveredDate === date && (
-                                                                <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10">
+                                                                <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap z-10 border border-gray-700">
                                                                     <div>{formatDateForDisplay(date)}</div>
                                                                     <div className="text-xs mt-1">
                                                                         {isCompleted ? '✓ Completed' : isInProgress ? '⏱ In Progress' : 'Click to start'}
@@ -846,14 +912,13 @@
             // Completed Puzzles View
             if (currentView === 'completed') {
                 return (
-                    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white p-4">
+                    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-indigo-950 to-purple-950 text-white p-4">
                         <AuthControls />
                         <div className="max-w-7xl mx-auto pt-16">
-                            {/* Header with Back Button */}
                             <div className="flex items-center gap-4 mb-8">
                                 <button
                                     onClick={() => setCurrentView('dashboard')}
-                                    className="bg-white/10 backdrop-blur-lg p-3 rounded-lg hover:bg-white/20 transition-all"
+                                    className="bg-gray-800/50 backdrop-blur-lg p-3 rounded-lg hover:bg-gray-700/50 transition-all border border-gray-700/50"
                                 >
                                     <ArrowLeft />
                                 </button>
@@ -863,28 +928,26 @@
                                 </div>
                             </div>
 
-                            {/* Completion Stats */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
-                                    <Trophy />
-                                    <h3 className="text-2xl font-bold mb-1 mt-3">{stats.completed}</h3>
+                                <div className="bg-gray-800/50 backdrop-blur-lg rounded-xl p-6 border border-gray-700/50">
+                                    <Trophy className="text-green-400 mb-3" />
+                                    <h3 className="text-2xl font-bold mb-1">{stats.completed}</h3>
                                     <p className="text-gray-300">Total Completed</p>
                                 </div>
                                 
-                                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
-                                    <TrendingUp />
-                                    <h3 className="text-2xl font-bold mb-1 mt-3">{stats.percentage}%</h3>
+                                <div className="bg-gray-800/50 backdrop-blur-lg rounded-xl p-6 border border-gray-700/50">
+                                    <TrendingUp className="text-indigo-400 mb-3" />
+                                    <h3 className="text-2xl font-bold mb-1">{stats.percentage}%</h3>
                                     <p className="text-gray-300">Completion Rate</p>
                                 </div>
                                 
-                                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
-                                    <Award />
-                                    <h3 className="text-2xl font-bold mb-1 mt-3">{stats.currentStreak} days</h3>
+                                <div className="bg-gray-800/50 backdrop-blur-lg rounded-xl p-6 border border-gray-700/50">
+                                    <Award className="text-purple-400 mb-3" />
+                                    <h3 className="text-2xl font-bold mb-1">{stats.currentStreak} days</h3>
                                     <p className="text-gray-300">Current Streak</p>
                                 </div>
                             </div>
 
-                            {/* Completed Puzzles Grid */}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {categorizedPuzzles.completed.slice().reverse().map(date => (
                                     <PuzzleCard key={formatDateForURL(date)} date={date} status="completed" />
@@ -893,14 +956,16 @@
                             
                             {categorizedPuzzles.completed.length === 0 && (
                                 <div className="text-center py-12">
-                                    <Trophy />
-                                    <p className="text-gray-400 mt-4">No completed puzzles yet. Start solving to see them here!</p>
+                                    <Trophy className="mx-auto text-gray-600 mb-4" />
+                                    <p className="text-gray-400">No completed puzzles yet. Start solving to see them here!</p>
                                 </div>
                             )}
                         </div>
                     </div>
                 );
             }
+
+            return null;
         };
 
         // Render the app
