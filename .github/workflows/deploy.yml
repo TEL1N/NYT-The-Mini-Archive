@@ -17,14 +17,12 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
-    - name: Replace API Key
+        - name: Replace API Key
       run: |
-        # Create index.html from template with API key replaced
-        sed "s/YOUR_API_KEY_HERE/${{ secrets.FIREBASE_API_KEY }}/g" index.template.html > index.html
-        
-        # Debug: Check if replacement worked
-        echo "Checking if API key was replaced..."
-        grep "apiKey" index.html
+        sed "s|YOUR_API_KEY_HERE|${{ secrets.FIREBASE_API_KEY }}|g" index.template.html > index.html
+        echo "--- index.html snippet ---"
+        grep -C1 "apiKey" index.html
+
     
     - name: Upload artifact
       uses: actions/upload-pages-artifact@v3
