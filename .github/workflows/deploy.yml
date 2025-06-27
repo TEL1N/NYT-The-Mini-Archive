@@ -17,7 +17,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
-        - name: Replace API Key
+    - name: Replace API Key
       run: |
         sed "s|YOUR_API_KEY_HERE|${{ secrets.FIREBASE_API_KEY }}|g" index.template.html > index.html
         echo "--- index.html snippet ---"
