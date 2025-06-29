@@ -1,7 +1,7 @@
 {
   "functions": {
     "api/mini.js": {
-      "runtime": "@vercel/node"
+      "maxDuration": 10
     }
   },
   "headers": [
